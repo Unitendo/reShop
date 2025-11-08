@@ -471,6 +471,7 @@ int main() {
     if (audioBuffer) linearFree(audioBuffer);
     C2D_Fini();
     ndspExit();
+    httpcExit();
     C3D_Fini();
     gfxExit();
     return 0;
@@ -493,6 +494,5 @@ int16_t* loadOpusToPCM(const char* path, u32* sampleCount) {
 
     op_free(of);
     *sampleCount = offset;
-    httpcExit();
     return buffer;
 }
