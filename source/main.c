@@ -349,6 +349,7 @@ int main() {
     C2D_Prepare();
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    httpcInit(0);
 
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 0));
@@ -492,5 +493,6 @@ int16_t* loadOpusToPCM(const char* path, u32* sampleCount) {
 
     op_free(of);
     *sampleCount = offset;
+    httpcExit();
     return buffer;
 }
