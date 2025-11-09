@@ -5,10 +5,13 @@ A Nintendo 3DS eShop remake built with libctru.
 > This project is not finished, but it is in active development.
 
 ## Checklist
+- [x] License
+- [x] Basic framework 
 - [x] Basic rendering
 - [x] Streamed Audio (Using @VirtuallyExisting's custom implementation)
 - [x] httpc downloading based off of devkitpro's example
 - [x] CIA Installation from SD Card
+- [ ] CIA Downloading from someplace
 - [ ] Full GUI Interface
 - [ ] Messaging (like Juxt communities but realtime) under each app listing
 - [ ] A user rating system
