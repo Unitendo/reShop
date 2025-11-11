@@ -13,6 +13,8 @@
 
 #include <sys/stat.h>
 
+u32 __stacksize__ = 0x100000;
+
 
 
 #define SAMPLE_RATE 48000
@@ -25,14 +27,19 @@
 
 
 
-char* token;
-char* param1;
-char* param2;
-char* param3;
-char* param4;
-char* param5;
-char* param6;
-char* param7;
+char* token = NULL;
+char* param1 = NULL;
+char* param2 = NULL;
+char* param3 = NULL;
+char* param4 = NULL;
+char* param5 = NULL;
+char* param6 = NULL;
+char* param7 = NULL;
+
+float scrollX = 0.0f;
+float velX = 0.0f;
+bool touched = false;
+float lastTouchX = 0.0f;
 
 
 
@@ -190,11 +197,6 @@ int16_t *audioBuffer = NULL;
 LightEvent audioEvent;
 volatile bool quit = false;
 OggOpusFile *musicFile = NULL;
-
-// Scrolling
-float scrollX = 0.0f, velX = 0.0f;
-bool touched = false;
-float lastTouchX = 0.0f;
 
 // SFX
 int16_t* sfx1 = NULL;
@@ -406,17 +408,12 @@ C2D_Text stext;
 
 
 
-void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
+void DrawText(const char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
+    if (!sbuffer) return; // Safety check
     C2D_TextBufClear(sbuffer);
     C2D_TextParse(&stext, sbuffer, text);
     C2D_TextOptimize(&stext);
-
-    if (!wordwrap) {
-        C2D_DrawText(&stext, C2D_WithColor, x, y, z, scaleX, scaleY, color);
-    }
-    if (wordwrap) {
-        C2D_DrawText(&stext, C2D_WithColor | C2D_WordWrap, x, y, z, scaleX, scaleY, color, 290.0f);
-    }
+    C2D_DrawText(&stext, wordwrap ? C2D_AlignLeft | C2D_WordWrap : 0, x, y, z, scaleX, scaleY, color);
 }
 
 
@@ -440,10 +437,16 @@ void createDirectoryRecursive(const char* path) {
 
 
 
+char* description = NULL;
+
+
+
+
 
 
 
 int main() {
+    u32 __stacksize__ = 0x100000;
 	fsInit();
 	romfsInit();
     gfxInitDefault();
@@ -457,15 +460,18 @@ int main() {
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 0));
 
-    ndspInit();
-    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
-    ndspChnSetRate(0, SAMPLE_RATE);
-    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
-    ndspSetCallback(audioCallback, NULL);
+    bool touched = false;
+    float lastTouchX = 0.0f;
 
-    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+//    ndspInit();
+//    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+//    ndspChnSetRate(0, SAMPLE_RATE);
+//    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
+//    ndspSetCallback(audioCallback, NULL);
 
-    musicFile = op_open_file("romfs:/eshop.opus", NULL); // we use nintendo music because this isn't on universal-db and I don't give a crap
+//    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+
+//    musicFile = op_open_file("romfs:/eshop.opus", NULL); // we use nintendo music because this isn't on universal-db and I don't give a crap
 
 
 
@@ -475,44 +481,44 @@ int main() {
 
 
 
-    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
-    memset(waveBufs, 0, sizeof(waveBufs));
-    for (int i = 0; i < 2; i++) {
-        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
-        waveBufs[i].status = NDSP_WBUF_DONE;
-    }
+//    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
+//    memset(waveBufs, 0, sizeof(waveBufs));
+//    for (int i = 0; i < 2; i++) {
+//        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
+//        waveBufs[i].status = NDSP_WBUF_DONE;
+//    }
 
-    fillBuffer(musicFile, &waveBufs[0]);
-    fillBuffer(musicFile, &waveBufs[1]);
+//    fillBuffer(musicFile, &waveBufs[0]);
+  //  fillBuffer(musicFile, &waveBufs[1]);
 
-    sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
+    //sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
 
 	int loadingcounter = 0;
 
 
 
-    u32 *soc_buffer = memalign(0x1000, 0x100000);
-    if (!soc_buffer) {
+//    u32 *soc_buffer = memalign(0x1000, 0x100000);
+//    if (!soc_buffer) {
         // placeholder
-    }
-    if (socInit(soc_buffer, 0x100000) != 0) {
+//    }
+//    if (socInit(soc_buffer, 0x100000) != 0) {
         // placeholder
-    }
+//    }
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
+//    int sock = socket(AF_INET, SOCK_STREAM, 0);
+//    if (sock < 0) {
         // placeholder
-    }
+//    }
 
-    struct sockaddr_in server;
-    memset(&server, 0, sizeof(server));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(6161); // new niche meme
-    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // 104.236.25.60
+//    struct sockaddr_in server;
+//    memset(&server, 0, sizeof(server));
+//    server.sin_family = AF_INET;
+//    server.sin_port = htons(6161); // new niche meme
+//    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // 104.236.25.60
 
-    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
-        // placeholder
-    }
+//    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
+//        // placeholder
+//    }
 
     bool newsdownloaded = false;
 
@@ -529,9 +535,13 @@ int main() {
 
     bool datagrabbed = false;
 
-    char* description;
+    char* description = NULL;
 
     float descscroll = 0.0f;
+
+    char* news = NULL;
+
+    u32 size;
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -557,6 +567,7 @@ int main() {
             createDirectoryRecursive("/3ds/reShop/news");
             download("http://104.236.25.60/reShop/news/today.txt", "/3ds/reShop/news/today.txt");
             newsdownloaded = true;
+            news = readFileToBuffer("/3ds/reShop/news/today.txt", &size);
         }
 
         // Load and parse content once
@@ -565,18 +576,20 @@ int main() {
             download("http://104.236.25.60/reShop/cdn/section/1/applisting.txt", "/3ds/reShop/temp/applisting.txt");
             download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x");
             apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
-            u32 size;
-            char* tempContent = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
-            if (tempContent) {
-                token = strtok(tempContent, ",");
-                param1 = strdup(strtok(NULL, ","));
-                param2 = strdup(strtok(NULL, ","));
-                param3 = strdup(strtok(NULL, ","));
-                param4 = strdup(strtok(NULL, ","));
-                param5 = strdup(strtok(NULL, ","));
-                param6 = strdup(strtok(NULL, ","));
-                param7 = strdup(strtok(NULL, ","));
+            if (!apps) {
+                apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
             }
+            char* tempContent = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
+//            if (tempContent) {
+//                token = strtok(tempContent, ",");
+//                param1 = strdup(strtok(NULL, ","));
+//                param2 = strdup(strtok(NULL, ","));
+//                param3 = strdup(strtok(NULL, ","));
+//                param4 = strdup(strtok(NULL, ","));
+//                param5 = strdup(strtok(NULL, ","));
+//                param6 = strdup(strtok(NULL, ","));
+//                param7 = strdup(strtok(NULL, ","));
+//            }
 
 
             contentloaded = true;
@@ -649,9 +662,11 @@ int main() {
                 float rectX = boxPositions[i] + scrollX;
                 if (rectX > -64 && rectX < 384) {
                     C2D_DrawRectSolid(rectX, 100, 0, 64, 64, C2D_Color32(255, 255, 255, 255));
-                    C2D_Sprite sprite;
-                    C2D_SpriteFromSheet(&sprite, apps, i);
-                    C2D_DrawImageAt(sprite.image, rectX, 100, 0, NULL, 1.0f, 1.0f);
+                    if (apps) {
+                        C2D_Sprite sprite;
+                        C2D_SpriteFromSheet(&sprite, apps, i);
+                        C2D_DrawImageAt(sprite.image, rectX, 100, 0, NULL, 1.0f, 1.0f);
+                    }
                     if (i == snappedIndex) { // Only show label when snapped
                         const char* label = NULL;
                         switch(i) {
@@ -663,7 +678,7 @@ int main() {
                             case 5: label = param6; break;
                             case 6: label = param7; break;
                         }
-                        DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+//                        DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
                     }
                 }
             }
@@ -687,7 +702,7 @@ int main() {
                     if (!ignoreTap && touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
                         wasTouched = true;
                         tappedbox = i;
-                        scene = 3;
+                        scene = 2;
                         datagrabbed = false;
                     }
                 }
@@ -718,8 +733,6 @@ int main() {
     //        }
 
             // Draw news text
-            u32 size;
-            char* news = readFileToBuffer("/3ds/reShop/news/today.txt", &size);
             if (news) {
                 C2D_SceneBegin(top);
                 DrawText(news, 0.0f, 225.5f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
@@ -733,27 +746,17 @@ int main() {
 
 
         if (scene == 3) {
-            if (tappedbox = 1) {
+            if (tappedbox == 1 && !datagrabbed) {
+                download("http://104.236.25.60/reShop/cdn/section/1/app1desc.txt", "/3ds/reShop/temp/app1desc.txt");
                 u32 size;
-                if (!datagrabbed) {
-                    download("http://104.236.25.60/reShop/cdn/section/1/app1desc.txt", "/3ds/reShop/temp/app1desc.txt");
-                    description = readFileToBuffer("/3ds/reShop/temp/app1desc.txt", &size);
-                    datagrabbed = true;
-                }
+                description = readFileToBuffer("/3ds/reShop/temp/app1desc.txt", &size);
+                datagrabbed = true;
+            }
+            if (description) {
                 C2D_SceneBegin(top);
-                DrawText(description, 0.0f, descscroll + 240, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+            //    DrawText(description, 0.0f, descscroll + 240, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
                 C2D_SceneBegin(bottom);
-                DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
-            }
-
-            if (hidKeysDown() & KEY_B) {
-                scene = 2;
-            }
-            if (hidKeysHeld() & KEY_DOWN) {
-                descscroll -= 3;
-            }
-            if (hidKeysHeld() & KEY_UP) {
-                descscroll += 3;
+            //    DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
             }
         }
 
@@ -777,11 +780,11 @@ int main() {
         if (hidKeysDown() & KEY_START) break;
     }
 
-    if (musicFile) op_free(musicFile);
-    if (sfx1) linearFree(sfx1);
-    if (audioBuffer) linearFree(audioBuffer);
+//    if (musicFile) op_free(musicFile);
+//    if (sfx1) linearFree(sfx1);
+//    if (audioBuffer) linearFree(audioBuffer);
     C2D_Fini();
-    ndspExit();
+//    ndspExit();
     httpcExit();
     C3D_Fini();
     gfxExit();
