@@ -17,12 +17,6 @@ u32 __stacksize__ = 0x100000;
 
 
 
-#define SAMPLE_RATE 48000
-#define CHANNELS 2
-#define BUFFER_MS 120
-#define SAMPLES_PER_BUF (SAMPLE_RATE * BUFFER_MS / 1000)
-#define WAVEBUF_SIZE (SAMPLES_PER_BUF * CHANNELS * sizeof(int16_t))
-
 
 
 
@@ -191,26 +185,23 @@ fail:
 
 
 
-// Audio
+#define SAMPLE_RATE 48000
+#define CHANNELS 2
+#define BUFFER_MS 120
+#define SAMPLES_PER_BUF (SAMPLE_RATE * BUFFER_MS / 1000)
+#define WAVEBUF_SIZE (SAMPLES_PER_BUF * CHANNELS * sizeof(int16_t))
+
 ndspWaveBuf waveBufs[2];
 int16_t *audioBuffer = NULL;
 LightEvent audioEvent;
 volatile bool quit = false;
-OggOpusFile *musicFile = NULL;
-
-// SFX
-int16_t* sfx1 = NULL;
-u32 sfx1_samples = 0;
 
 bool fillBuffer(OggOpusFile *file, ndspWaveBuf *buf) {
     int total = 0;
     while (total < SAMPLES_PER_BUF) {
         int16_t *ptr = buf->data_pcm16 + (total * CHANNELS);
         int ret = op_read_stereo(file, ptr, (SAMPLES_PER_BUF - total) * CHANNELS);
-        if (ret <= 0) {
-            op_pcm_seek(file, 0);
-            continue;
-        }
+        if (ret <= 0) break;
         total += ret;
     }
     if (total == 0) return false;
@@ -222,6 +213,19 @@ bool fillBuffer(OggOpusFile *file, ndspWaveBuf *buf) {
 
 void audioCallback(void *arg) {
     if (!quit) LightEvent_Signal(&audioEvent);
+}
+
+void audioThread(void *arg) {
+    OggOpusFile *file = (OggOpusFile*)arg;
+    while (!quit) {
+        for (int i = 0; i < 2; i++) {
+            if (waveBufs[i].status == NDSP_WBUF_DONE) {
+                if (!fillBuffer(file, &waveBufs[i])) { quit = true; return; }
+            }
+        }
+        LightEvent_Wait(&audioEvent);
+    }
+    return;
 }
 
 void playSFX(int16_t* samples, u32 nsamples) {
@@ -463,35 +467,29 @@ int main() {
     bool touched = false;
     float lastTouchX = 0.0f;
 
-//    ndspInit();
-//    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
-//    ndspChnSetRate(0, SAMPLE_RATE);
-//    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
-//    ndspSetCallback(audioCallback, NULL);
+    ndspInit();
+    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+    ndspChnSetRate(0, SAMPLE_RATE);
+    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
+    ndspSetCallback(audioCallback, NULL);
 
-//    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+    OggOpusFile *file = op_open_file("romfs:/eshop.opus", NULL);
 
-//    musicFile = op_open_file("romfs:/eshop.opus", NULL); // we use nintendo music because this isn't on universal-db and I don't give a crap
+    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
+    memset(waveBufs, 0, sizeof(waveBufs));
+    for (int i = 0; i < 2; i++) {
+        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
+        waveBufs[i].status = NDSP_WBUF_DONE;
+    }
 
+    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+    Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x18, 1, false);
 
+    // chatgpt
+    if (!fillBuffer(file, &waveBufs[0]));
+    if (!fillBuffer(file, &waveBufs[1]));
 
-
-
-    sbuffer = C2D_TextBufNew(4096);
-
-
-
-//    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
-//    memset(waveBufs, 0, sizeof(waveBufs));
-//    for (int i = 0; i < 2; i++) {
-//        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
-//        waveBufs[i].status = NDSP_WBUF_DONE;
-//    }
-
-//    fillBuffer(musicFile, &waveBufs[0]);
-  //  fillBuffer(musicFile, &waveBufs[1]);
-
-    //sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
+//    sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
 
 	int loadingcounter = 0;
 
@@ -678,7 +676,9 @@ int main() {
                             case 5: label = param6; break;
                             case 6: label = param7; break;
                         }
-//                        DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                        if (label) {
+                            DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                        }
                     }
                 }
             }
@@ -702,7 +702,7 @@ int main() {
                     if (!ignoreTap && touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
                         wasTouched = true;
                         tappedbox = i;
-                        scene = 2;
+                        scene = 3;
                         datagrabbed = false;
                     }
                 }
@@ -754,9 +754,9 @@ int main() {
             }
             if (description) {
                 C2D_SceneBegin(top);
-            //    DrawText(description, 0.0f, descscroll + 240, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+                DrawText(description, 0.0f, descscroll + 240, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
                 C2D_SceneBegin(bottom);
-            //    DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+                DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
             }
         }
 
@@ -767,24 +767,29 @@ int main() {
 
 
 
+        if (waveBufs[0].status == NDSP_WBUF_DONE) {
+            if (!fillBuffer(file, &waveBufs[0]));
+        }
+        if (waveBufs[1].status == NDSP_WBUF_DONE) {
+            if (!fillBuffer(file, &waveBufs[1]));
+        }
 
 
 
 
 
-
-
+        svcSleepThread(1000000L);
 
 
         C3D_FrameEnd(0);
         if (hidKeysDown() & KEY_START) break;
     }
 
-//    if (musicFile) op_free(musicFile);
+    if (file) op_free(file);
 //    if (sfx1) linearFree(sfx1);
-//    if (audioBuffer) linearFree(audioBuffer);
+    if (audioBuffer) linearFree(audioBuffer);
     C2D_Fini();
-//    ndspExit();
+    ndspExit();
     httpcExit();
     C3D_Fini();
     gfxExit();
