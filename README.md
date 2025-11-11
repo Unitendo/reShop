@@ -15,7 +15,7 @@ A Nintendo 3DS eShop remake built with libctru.
 - [x] Streamed Audio (Using @VirtuallyExisting's custom implementation)
 - [x] httpc downloading based off of devkitpro's example
 - [x] CIA Installation from SD Card
-- [ ] Grabbing listings, descriptions, and icons off of a server
+- [x] Grabbing listings, descriptions, and icons off of a server
 - [ ] Downloading and Installing apps
 - [ ] Complete GUI
 - [ ] Messaging (like Juxt communities but realtime) under each app listing
