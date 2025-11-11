@@ -11,6 +11,8 @@
 
 #include <citro2d.h>
 
+#include <sys/stat.h>
+
 
 
 #define SAMPLE_RATE 48000
@@ -18,6 +20,19 @@
 #define BUFFER_MS 120
 #define SAMPLES_PER_BUF (SAMPLE_RATE * BUFFER_MS / 1000)
 #define WAVEBUF_SIZE (SAMPLES_PER_BUF * CHANNELS * sizeof(int16_t))
+
+
+
+
+
+char* token;
+char* param1;
+char* param2;
+char* param3;
+char* param4;
+char* param5;
+char* param6;
+char* param7;
 
 
 
@@ -62,7 +77,7 @@ bool download(const char* url_str, const char* path) {
         if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto fail;
         if (CHECK_RESULT("httpcSetSSLOpt",   httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) goto close;
         if (CHECK_RESULT("httpcSetKeepAlive", httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) goto close;
-        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "reShop-client/1.0.0"))) goto close;
+        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0"))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "Connection", "Keep-Alive"))) goto close;
 
         if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) {
@@ -339,6 +354,94 @@ C2D_Sprite loadingbags;
 
 
 
+char *content;
+
+
+char* readFileToBuffer(const char* filePath, u32* outSize) {
+    Handle file;
+    u64 fileSize = 0;
+    char* buffer = NULL;
+
+    // Open file
+    Result res = FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filePath), FS_OPEN_READ, 0);   
+    if (R_FAILED(res)) return NULL;
+
+    // Get file size
+    FSFILE_GetSize(file, &fileSize);
+    if (fileSize == 0) {
+        FSFILE_Close(file);
+        return NULL;
+    }
+
+    // Allocate buffer (+1 for null terminator)
+    buffer = (char*)malloc(fileSize + 1);
+    if (!buffer) {
+        FSFILE_Close(file);
+        return NULL;
+    }
+
+    // Read file
+    u32 bytesRead;
+    FSFILE_Read(file, &bytesRead, 0, buffer, fileSize);
+    FSFILE_Close(file);
+
+    // Null-terminate
+    buffer[bytesRead] = '\0';
+    if (outSize) *outSize = bytesRead;
+
+    return buffer;
+}
+
+
+
+
+
+
+C2D_TextBuf sbuffer;
+C2D_Text stext;
+
+
+
+
+
+
+
+void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
+    C2D_TextBufClear(sbuffer);
+    C2D_TextParse(&stext, sbuffer, text);
+    C2D_TextOptimize(&stext);
+
+    if (!wordwrap) {
+        C2D_DrawText(&stext, C2D_WithColor, x, y, z, scaleX, scaleY, color);
+    }
+    if (wordwrap) {
+        C2D_DrawText(&stext, C2D_WithColor | C2D_WordWrap, x, y, z, scaleX, scaleY, color, 290.0f);
+    }
+}
+
+
+
+
+void createDirectoryRecursive(const char* path) {
+    char temp[256];
+    snprintf(temp, sizeof(temp), "%s", path);
+    char* p = temp;
+    while (*p) {
+        if (*p == '/') {
+            *p = '\0';
+            if (temp[0]) mkdir(temp, 0777);
+            *p = '/';
+        }
+        p++;
+    }
+    if (temp[0]) mkdir(temp, 0777);
+}
+
+
+
+
+
+
 
 int main() {
 	fsInit();
@@ -354,8 +457,6 @@ int main() {
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 0));
 
-    download("https://raw.githubusercontent.com/VirtuallyExisting/DISC-DB/refs/heads/main/basic", "/3ds/blurga.txt");
-
     ndspInit();
     ndspSetOutputMode(NDSP_OUTPUT_STEREO);
     ndspChnSetRate(0, SAMPLE_RATE);
@@ -364,7 +465,15 @@ int main() {
 
     LightEvent_Init(&audioEvent, RESET_ONESHOT);
 
-    musicFile = op_open_file("romfs:/eshop.opus", NULL);
+    musicFile = op_open_file("romfs:/eshop.opus", NULL); // we use nintendo music because this isn't on universal-db and I don't give a crap
+
+
+
+
+
+    sbuffer = C2D_TextBufNew(4096);
+
+
 
     audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
     memset(waveBufs, 0, sizeof(waveBufs));
@@ -380,8 +489,273 @@ int main() {
 
 	int loadingcounter = 0;
 
+
+
+    u32 *soc_buffer = memalign(0x1000, 0x100000);
+    if (!soc_buffer) {
+        // placeholder
+    }
+    if (socInit(soc_buffer, 0x100000) != 0) {
+        // placeholder
+    }
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        // placeholder
+    }
+
+    struct sockaddr_in server;
+    memset(&server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(6161); // new niche meme
+    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // 104.236.25.60
+
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
+        // placeholder
+    }
+
+    bool newsdownloaded = false;
+
+    bool contentloaded = false;
+
+    C2D_SpriteSheet apps;
+
+    const float boxPositions[7] = {0.0f, 100.0f, 200.0f, 300.0f, 400.0f, 500.0f, 600.0f};
+
+
+    const float center = 130.0f;
+
+    int tappedbox;
+
+    bool datagrabbed = false;
+
+    char* description;
+
+    float descscroll = 0.0f;
+
     while (aptMainLoop()) {
         hidScanInput();
+        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+        C2D_TargetClear(top, C2D_Color32(239, 219, 164, 255));
+        C2D_TargetClear(bottom, C2D_Color32(239, 219, 164, 255));
+
+        C2D_SceneBegin(top);
+
+        // Scene 1: Loading
+        if (scene == 1) {
+            C2D_SpriteSetPos(&logo, 115, 35);
+            C2D_DrawSprite(&logo);
+            loadingcounter++;
+            if (loadingcounter > 300) {
+                scene = 2;
+            }
+        }
+
+        // Download news once
+        if (!newsdownloaded) {
+            createDirectoryRecursive("/3ds/reShop/news");
+            download("http://104.236.25.60/reShop/news/today.txt", "/3ds/reShop/news/today.txt");
+            newsdownloaded = true;
+        }
+
+        // Load and parse content once
+        if (!contentloaded) {
+            createDirectoryRecursive("/3ds/reShop/temp");
+            download("http://104.236.25.60/reShop/cdn/section/1/applisting.txt", "/3ds/reShop/temp/applisting.txt");
+            download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x");
+            apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
+            u32 size;
+            char* tempContent = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
+            if (tempContent) {
+                token = strtok(tempContent, ",");
+                param1 = strdup(strtok(NULL, ","));
+                param2 = strdup(strtok(NULL, ","));
+                param3 = strdup(strtok(NULL, ","));
+                param4 = strdup(strtok(NULL, ","));
+                param5 = strdup(strtok(NULL, ","));
+                param6 = strdup(strtok(NULL, ","));
+                param7 = strdup(strtok(NULL, ","));
+            }
+
+
+            contentloaded = true;
+        }
+
+        // Scene 2: Scrolling UI
+        C2D_SceneBegin(bottom);
+        if (scene == 2) {
+            touchPosition touch;
+            bool touchActive = hidKeysHeld() & KEY_TOUCH;
+
+            // 7 boxes spaced 100px apart
+            const int boxCount = 7;
+            float boxPositions[7] = {0.0f, 100.0f, 200.0f, 300.0f, 400.0f, 500.0f, 600.0f};
+
+            if (touchActive) {
+                hidTouchRead(&touch);
+                if (!touched) {
+                    lastTouchX = touch.px;
+                    touched = true;
+                } else {
+                    float delta = touch.px - lastTouchX;
+                    velX = delta * 0.5f;
+                    scrollX += delta;
+                    lastTouchX = touch.px;
+                }
+            } else if (touched) {
+                touched = false;
+            }
+
+            // Inertia and snap
+            if (!touched) {
+                scrollX += velX;
+                velX *= 0.95f;
+                if (fabsf(velX) < 0.1f) velX = 0.0f;
+
+                // Snap to nearest box when fling ends
+                if (velX == 0.0f) {
+                    float center = 130.0f;
+                    float bestDist = INFINITY;
+                    float targetBox = 0.0f;
+                    for (int i = 0; i < boxCount; i++) {
+                        float pos = boxPositions[i] + scrollX;
+                        float dist = fabsf(pos - center);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            targetBox = boxPositions[i];
+                        }
+                    }
+                    float targetScroll = center - targetBox;
+                    scrollX += (targetScroll - scrollX) * 0.2f;
+                    if (fabsf(targetScroll - scrollX) < 1.0f) {
+                        scrollX = targetScroll;
+                    }
+                }
+            }
+
+            // After snapping logic
+            float targetBox = center - scrollX;
+            int snappedIndex = -1;
+            for (int i = 0; i < boxCount; i++) {
+                if (fabsf(boxPositions[i] - targetBox) < 1.0f) {
+                    snappedIndex = i;
+                    break;
+                }
+            }
+
+            // Draw label only for the snapped box
+            for (int i = 0; i < boxCount; i++) {
+                float rectX = boxPositions[i] + scrollX;
+                if (rectX > -64 && rectX < 384) {
+                    C2D_DrawRectSolid(rectX, 100, 0, 64, 64, C2D_Color32(255, 255, 255, 255));
+                    C2D_Sprite sprite;
+                    C2D_SpriteFromSheet(&sprite, apps, i);
+                    C2D_DrawImageAt(sprite.image, rectX, 100, 0, NULL, 1.0f, 1.0f);
+                    if (i == snappedIndex) { // Only show label when snapped
+                        const char* label = NULL;
+                        switch(i) {
+                            case 0: label = param1; break;
+                            case 1: label = param2; break;
+                            case 2: label = param3; break;
+                            case 3: label = param4; break;
+                            case 4: label = param5; break;
+                            case 5: label = param6; break;
+                            case 6: label = param7; break;
+                        }
+                        DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                    }
+                }
+            }
+
+            static bool wasTouched = false;
+            static bool ignoreTap = false;
+            bool isTouched = (hidKeysHeld() & KEY_TOUCH);
+            if (isTouched) hidTouchRead(&touch);
+
+            // If scrolling fast, ignore tap
+            if (fabsf(velX) > 2.0f) ignoreTap = true;
+
+            for (int i = 0; i < boxCount; i++) {
+                float rectX = boxPositions[i] + scrollX;
+                float rectY = 100;
+                float w = 64, h = 64;
+                float left = rectX, right = rectX + w;
+                float top = rectY, bottom = rectY + h;
+
+                if (!wasTouched && isTouched) {
+                    if (!ignoreTap && touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
+                        wasTouched = true;
+                        tappedbox = i;
+                        scene = 3;
+                        datagrabbed = false;
+                    }
+                }
+            }
+
+            if (!isTouched) {
+                wasTouched = false;
+                ignoreTap = false; // Reset when touch ends
+            }
+
+            // Draw boxes
+ //           for (int i = 0; i < boxCount; i++) {
+ //               float rectX = boxPositions[i] + scrollX;
+ //               if (rectX > -64 && rectX < 384) { // Cull off-screen
+ //                   C2D_DrawRectSolid(rectX, 100, 0, 64, 64, C2D_Color32(255, 255, 255, 255));
+ //                   const char* label = NULL;
+ //                   switch(i) {
+ //                       case 0: label = param1; break;
+ //                       case 1: label = param2; break;
+  //                      case 2: label = param3; break;
+ //                       case 3: label = param4; break;
+//                        case 4: label = param5; break;
+ //                       case 5: label = param6; break;
+ //                       case 6: label = param7; break;
+ //                   }
+  //                  if (label) DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+ //               }
+    //        }
+
+            // Draw news text
+            u32 size;
+            char* news = readFileToBuffer("/3ds/reShop/news/today.txt", &size);
+            if (news) {
+                C2D_SceneBegin(top);
+                DrawText(news, 0.0f, 225.5f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+            }
+        }
+
+
+
+
+
+
+
+        if (scene == 3) {
+            if (tappedbox = 1) {
+                u32 size;
+                if (!datagrabbed) {
+                    download("http://104.236.25.60/reShop/cdn/section/1/app1desc.txt", "/3ds/reShop/temp/app1desc.txt");
+                    description = readFileToBuffer("/3ds/reShop/temp/app1desc.txt", &size);
+                    datagrabbed = true;
+                }
+                C2D_SceneBegin(top);
+                DrawText(description, 0.0f, descscroll + 240, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+                C2D_SceneBegin(bottom);
+                DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+            }
+
+            if (hidKeysDown() & KEY_B) {
+                scene = 2;
+            }
+            if (hidKeysHeld() & KEY_DOWN) {
+                descscroll -= 3;
+            }
+            if (hidKeysHeld() & KEY_UP) {
+                descscroll += 3;
+            }
+        }
 
 
 
@@ -392,75 +766,12 @@ int main() {
 
 
 
-		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-
-        C2D_TargetClear(top, C2D_Color32(0, 0, 0, 255));
-
-
-
-
-		if (scene == 1) {
-			C2D_SceneBegin(top);
-			C2D_SpriteSetPos(&logo, 100, 50);
-			C2D_DrawSprite(&logo);
-			loadingcounter++;
-			if (loadingcounter > 300) {
-				scene = 2;
-			}
-		}
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-		if (scene == 2) {
-			touchPosition touch;
-			bool touchActive = hidKeysHeld() & KEY_TOUCH;
-
-			if (touchActive) {
-				hidTouchRead(&touch);
-				if (!touched) {
-					lastTouchX = touch.px;
-					touched = true;
-				} else {
-					float delta = touch.px - lastTouchX;
-					velX = delta * 0.5f;
-					scrollX += delta;
-					lastTouchX = touch.px;
-				}
-			} else if (touched) {
-				touched = false;
-			}
-
-			if (!touched) {
-				scrollX += velX;
-				velX *= 0.95f;
-				if (fabsf(velX) < 0.1f) velX = 0.0f;
-			}
-
-			if (hidKeysDown() & KEY_A && sfx1) playSFX(sfx1, sfx1_samples);
-
-			float rectX = 100.0f + scrollX;
-			rectX = fmaxf(fminf(rectX, 320.0f), -200.0f);
-			float rect2X = 0.0f + scrollX;
-			rect2X = fmaxf(fminf(rect2X, 320.0f), -200.0f);
-
-			C2D_TargetClear(bottom, C2D_Color32(0, 0, 0, 255));
-			C2D_SceneBegin(bottom);
-
-			C2D_DrawRectSolid(rectX, 100, 0, 64, 64, C2D_Color32(255, 255, 255, 255));
-			C2D_DrawRectSolid(rect2X, 100, 0, 64, 64, C2D_Color32(255, 255, 255, 255));
-		}
 
         C3D_FrameEnd(0);
         if (hidKeysDown() & KEY_START) break;
