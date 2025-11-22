@@ -183,8 +183,6 @@ fail:
 
 
 
-
-
 #define SAMPLE_RATE 48000
 #define CHANNELS 2
 #define BUFFER_MS 120
@@ -412,12 +410,18 @@ C2D_Text stext;
 
 
 
-void DrawText(const char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
-    if (!sbuffer) return; // Safety check
+void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
+//    if (!sbuffer) {return;}
     C2D_TextBufClear(sbuffer);
     C2D_TextParse(&stext, sbuffer, text);
     C2D_TextOptimize(&stext);
-    C2D_DrawText(&stext, wordwrap ? C2D_AlignLeft | C2D_WordWrap : 0, x, y, z, scaleX, scaleY, color);
+
+    if (!wordwrap) {
+        C2D_DrawText(&stext, C2D_WithColor, x, y, z, scaleX, scaleY, color);
+    }
+    if (wordwrap) {
+        C2D_DrawText(&stext, C2D_WithColor | C2D_WordWrap, x, y, z, scaleX, scaleY, color, 290.0f);
+    }
 }
 
 
@@ -442,6 +446,83 @@ void createDirectoryRecursive(const char* path) {
 
 
 char* description = NULL;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void downloadThreadFunc(void* arg);
+
+
+
+// Thread function
+void downloadThreadFunc(void* arg) {  // <-- Changed return type to void
+    char* url = ((char**)arg)[0];
+    char* path = ((char**)arg)[1];
+    download(url, path);
+    free(arg);
+}
+
+// Start non-blocking download
+Thread startDownload(const char* url, const char* path) {
+    char** args = malloc(2 * sizeof(char*));
+    args[0] = strdup(url);
+    args[1] = strdup(path);
+
+    Thread thread = threadCreate(downloadThreadFunc, args, 0x8000, 0x18, 1, false);
+    if (thread == NULL) {
+        printf("Failed to create thread!\n");
+        free(args[0]); free(args[1]); free(args);
+    }
+    return thread;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -474,6 +555,8 @@ int main() {
     ndspSetCallback(audioCallback, NULL);
 
     OggOpusFile *file = op_open_file("romfs:/eshop.opus", NULL);
+
+    sbuffer = C2D_TextBufNew(4096);
 
     audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
     memset(waveBufs, 0, sizeof(waveBufs));
@@ -533,20 +616,77 @@ int main() {
 
     bool datagrabbed = false;
 
-    char* description = NULL;
+    char* description = "hamblyrga";
 
     float descscroll = 0.0f;
 
-    char* news = NULL;
+    char* news;
 
     u32 size;
+
+    int cursection = 1;
+
+    int frameCount = 0;
+    float fps = 0.0f;
+
+    char fpsText[256];
+
+    u64 lastTime = osGetTime();
+
+
 
     while (aptMainLoop()) {
         hidScanInput();
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
+
+
+
+
+
+
+
+
+
+
+
+
         C2D_TargetClear(top, C2D_Color32(239, 219, 164, 255));
         C2D_TargetClear(bottom, C2D_Color32(239, 219, 164, 255));
+
+
+
+
+
+
+
+
+        u64 currentTime = osGetTime();
+        frameCount++;
+
+        if (currentTime - lastTime >= 1000) { // 1 second passed
+            fps = frameCount;
+            frameCount = 0;
+            lastTime = currentTime; // Reset timer
+        }
+
+
+
+
+        sprintf(fpsText, "MissingNo. FPS: %.0f", fps);
+        C2D_SceneBegin(top);
+        DrawText(fpsText, 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
+
+
+
+
+
+
+
+
+
+
+
 
         C2D_SceneBegin(top);
 
@@ -564,8 +704,8 @@ int main() {
         if (!newsdownloaded) {
             createDirectoryRecursive("/3ds/reShop/news");
             download("http://104.236.25.60/reShop/news/today.txt", "/3ds/reShop/news/today.txt");
-            newsdownloaded = true;
             news = readFileToBuffer("/3ds/reShop/news/today.txt", &size);
+            newsdownloaded = true;
         }
 
         // Load and parse content once
@@ -578,16 +718,24 @@ int main() {
                 apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
             }
             char* tempContent = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
-//            if (tempContent) {
-//                token = strtok(tempContent, ",");
-//                param1 = strdup(strtok(NULL, ","));
-//                param2 = strdup(strtok(NULL, ","));
-//                param3 = strdup(strtok(NULL, ","));
-//                param4 = strdup(strtok(NULL, ","));
-//                param5 = strdup(strtok(NULL, ","));
-//                param6 = strdup(strtok(NULL, ","));
-//                param7 = strdup(strtok(NULL, ","));
-//            }
+            if (tempContent) {
+                char* token = strtok(tempContent, ",");
+                if (token) token = strtok(NULL, ",");
+                if (token) param1 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param2 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param3 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param4 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param5 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param6 = strdup(token);
+                token = strtok(NULL, ",");
+                if (token) param7 = strdup(token);
+                free(tempContent); // Avoid leak
+            }
 
 
             contentloaded = true;
@@ -702,7 +850,12 @@ int main() {
                     if (!ignoreTap && touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
                         wasTouched = true;
                         tappedbox = i;
-                        scene = 3;
+                        if (tappedbox != 0) {
+                            scene = 3;
+                        }
+                        if (tappedbox == 0) {
+                            scene = 4;
+                        }
                         datagrabbed = false;
                     }
                 }
@@ -746,10 +899,18 @@ int main() {
 
 
         if (scene == 3) {
-            if (tappedbox == 1 && !datagrabbed) {
-                download("http://104.236.25.60/reShop/cdn/section/1/app1desc.txt", "/3ds/reShop/temp/app1desc.txt");
+            if (!datagrabbed) {
+                descscroll = 0.0f;
+                FILE* f = fopen("/3ds/reShop/temp/appdesc.txt", "w");
+                fclose(f);
+                char url[256];
+                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%ddesc.txt", cursection, tappedbox);
+                download(url, "/3ds/reShop/temp/appdesc.txt");
                 u32 size;
-                description = readFileToBuffer("/3ds/reShop/temp/app1desc.txt", &size);
+                description = readFileToBuffer("/3ds/reShop/temp/appdesc.txt", &size);
+                if (!description) {
+                    description = "Description failed to load, if you are seeing this make an issue on Github or tell us on Discord.";
+                }
                 datagrabbed = true;
             }
             if (description) {
@@ -758,6 +919,29 @@ int main() {
                 C2D_SceneBegin(bottom);
                 DrawText(description, 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
             }
+            if (!description) {
+                C2D_SceneBegin(bottom);
+                DrawText("Description failed to load, if you are seeing this tell us in our Discord.", 0.0f, descscroll, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+            }
+
+            if (hidKeysHeld() & KEY_DOWN) {
+                descscroll -= 3;
+            }
+            if (hidKeysHeld() & KEY_UP) {
+                descscroll += 3;
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 2;
+            }
+
+
+
+
+            C2D_SceneBegin(bottom);
+            DrawText("Press B to leave.", 0.0f, 220.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
+
+
+
         }
 
 
