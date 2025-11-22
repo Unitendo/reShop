@@ -16,10 +16,14 @@ A Nintendo 3DS eShop remake built with libctru.
 - [x] httpc downloading based off of devkitpro's example
 - [x] CIA Installation from SD Card
 - [x] Grabbing listings, descriptions, and icons off of a server
-- [ ] Downloading and Installing apps
+- [x] Downloading and Installing apps
+- [ ] Downloading Animation
+- [ ] Private Beta
 - [ ] Complete GUI
 - [ ] Messaging (like Juxt communities but realtime) under each app listing
 - [ ] A user rating system
+- [ ] eShop-ify the entire interface (make it look as similar as possible)
+- [ ] Open Beta
 
 ## How to compile
 Install devkitpro with 3DS tools and install libopusfile using dkp-pacman then run make to create the .3dsx
