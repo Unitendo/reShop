@@ -27,6 +27,7 @@ A Nintendo 3DS eShop remake built with libctru.
 - [ ] Messaging (like Juxt communities but realtime) under each app listing
 - [ ] A user rating system
 - [ ] Download DS apps as well (not just DSiWare!)
+- [ ] Fake Currency (not needed to get homebrew, more like an achievement system. you can get different ranks on a leaderboard, etc.)
 - [ ] Closed Beta
 - [ ] Implement friending users (friends list and in-app)
 - [ ] Suggest users who play similar games as you
