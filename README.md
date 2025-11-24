@@ -8,6 +8,9 @@ A Nintendo 3DS eShop remake built with libctru.
 > Do not steal our code. Especially you, Brewtendo.
 > If any other pieces of software show up by other people or organizations that are unauthorized by us then they have stolen our code. Notify us immediately.
 
+> [!CAUTION]
+> This software is still in development. Ensure you back up your SysNAND before even trying to use this.
+
 ## v1 Checklist
 - [x] License
 - [x] Basic framework 
