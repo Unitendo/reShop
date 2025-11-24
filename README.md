@@ -36,7 +36,9 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 ## How to compile
-Install devkitpro with 3DS tools and install libopusfile using dkp-pacman then run make to create the .3dsx
+You are not able to, seeing as that the proper identification is private and inaccessible to the public.
+
+Please wait for us to compile a build and publish it ourselves. Thank you for your patience.
 
 
 
