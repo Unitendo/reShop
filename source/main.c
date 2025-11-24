@@ -504,7 +504,7 @@ Thread startDownload(const char* url, const char* path) {
     args[0] = strdup(url);
     args[1] = strdup(path);
 
-    Thread thread = threadCreate(downloadThreadFunc, args, 0x8000, 0x18, 1, false);
+    Thread thread = threadCreate(downloadThreadFunc, args, 0x8000, 0x38, -2, false);
     if (thread == NULL) {
         printf("Failed to create thread!\n");
         free(args[0]); free(args[1]); free(args);
@@ -560,6 +560,9 @@ int main() {
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
     httpcInit(0);
     amInit();
+    aptInit();
+
+    APT_SetAppCpuTimeLimit(1);
 
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 0));
@@ -595,7 +598,7 @@ int main() {
     }
 
     LightEvent_Init(&audioEvent, RESET_ONESHOT);
-    Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x18, 1, false);
+    Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x3F, 1, false);
 
     // chatgpt
     if (!fillBuffer(file, &waveBufs[0]));
