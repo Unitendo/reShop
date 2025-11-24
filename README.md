@@ -36,9 +36,15 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 ## How to compile
-You are not able to, seeing as that the proper identification is private and inaccessible to the public.
+Run 
+```bash
+git clone https://github.com/Unitendo/reShop/
+cd reShop
+make
+```
+However, you will not be able to connect to our servers, seeing as that the proper identification is private and inaccessible to the public.
 
-Please wait for us to compile a build and publish it ourselves. Thank you for your patience.
+Therefore, the best way to get builds is to wait for us to compile a build and publish it ourselves. Thank you for your patience.
 
 
 
