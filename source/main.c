@@ -13,7 +13,12 @@
 
 #include <sys/stat.h>
 
+#include <3ds/services/fs.h>
+
 u32 __stacksize__ = 0x100000;
+
+
+u32 bw;
 
 
 
@@ -36,7 +41,7 @@ bool touched = false;
 float lastTouchX = 0.0f;
 
 
-
+volatile bool downloadDone = false;
 
 
 
@@ -69,16 +74,21 @@ bool CHECK_RESULT(const char* name, Result res) {
     return failed;
 }
 
+httpcContext context;
+
+u32 size;
+u32 siz;
+
 bool download(const char* url_str, const char* path) {
-    httpcContext context;
     u32 status = 0;
     cstring url = cstr_new(url_str);
+    downloadDone = false;
 
     while (true) {
         if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto fail;
         if (CHECK_RESULT("httpcSetSSLOpt",   httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) goto close;
         if (CHECK_RESULT("httpcSetKeepAlive", httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) goto close;
-        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0"))) goto close;
+        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", ""))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "Connection", "Keep-Alive"))) goto close;
 
         if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) {
@@ -100,7 +110,7 @@ bool download(const char* url_str, const char* path) {
             }
             cstr_free(&url);
             url = cstr_new(newurl);
-            printf("Redirecting to url: %s\n", url.data);
+//            printf("Redirecting to url: %s\n", url.data);
             httpcCloseContext(&context);
             continue;
         }
@@ -108,17 +118,17 @@ bool download(const char* url_str, const char* path) {
     }
 
     if (status != 200) {
-        printf("Returned Code: %lu\n", status);
+//        printf("Returned Code: %lu\n", status);
         goto fail;
     }
 
-    u32 size = 0;
-    if (CHECK_RESULT("httpcGetDownloadSizeState", httpcGetDownloadSizeState(&context, NULL, &size))) {
+    siz = 0;
+    if (CHECK_RESULT("httpcGetDownloadSizeState", httpcGetDownloadSizeState(&context, NULL, &siz))) {
         httpcCloseContext(&context);
         goto fail;
     }
 
-    printf("Downloading %lu bytes.\n", size);
+//    printf("Downloading %lu bytes.\n", size);
 
     FS_Archive sdmcRoot;
     if (CHECK_RESULT("FSUSER_OpenArchive", FSUSER_OpenArchive(&sdmcRoot, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
@@ -142,7 +152,8 @@ bool download(const char* url_str, const char* path) {
     }
 
     u8* data = malloc(0x4000);
-    u32 bw = 0, readSize;
+    bw = 0;
+    u32 readSize;
     Result ret = HTTPC_RESULTCODE_DOWNLOADPENDING;
 
     while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING) {
@@ -151,7 +162,7 @@ bool download(const char* url_str, const char* path) {
             break;
         }
         bw += readSize;
-        printf("%lu/%lu\n", bw, size);
+//        printf("%lu/%lu\n", bw, size);
     }
 
     FSFILE_Close(h);
@@ -160,6 +171,8 @@ bool download(const char* url_str, const char* path) {
     free(data);
     cstr_free(&url);
     return ret == 0 || ret == HTTPC_RESULTCODE_DOWNLOADPENDING; // Success if completed or already done
+
+    downloadDone = true;
 
 fail:
     cstr_free(&url);
@@ -221,7 +234,8 @@ void audioThread(void *arg) {
                 if (!fillBuffer(file, &waveBufs[i])) { quit = true; return; }
             }
         }
-        LightEvent_Wait(&audioEvent);
+        svcSleepThread(10000000L);
+//        LightEvent_Wait(&audioEvent);
     }
     return;
 }
@@ -279,7 +293,10 @@ bool isTitleInstalled(u64 titleId, FS_MediaType mediaType) {
     return installed;
 }
 
+static bool installoccuring = false;
+
 Result installCIA(const char* path) {
+    installoccuring = true;
     Handle ciaHandle;
     FILE* file = fopen(path, "rb");
     if (!file) return -1;
@@ -307,6 +324,7 @@ Result installCIA(const char* path) {
 
     fclose(file);
     res = AM_FinishCiaInstall(ciaHandle);
+    installoccuring = false;
     return res;
 }
 
@@ -541,12 +559,23 @@ int main() {
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
     httpcInit(0);
+    amInit();
 
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 0));
 
+    bool downloadbegun = false;
+
     bool touched = false;
     float lastTouchX = 0.0f;
+
+    static bool installationStarted = false;
+    static bool installationDone = false;
+
+    u32 download_progress = 0;  // 0-100%
+    bool download_active = false;
+
+    u32 sampleCount;
 
     ndspInit();
     ndspSetOutputMode(NDSP_OUTPUT_STEREO);
@@ -575,6 +604,7 @@ int main() {
 //    sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
 
 	int loadingcounter = 0;
+
 
 
 
@@ -632,6 +662,11 @@ int main() {
     char fpsText[256];
 
     u64 lastTime = osGetTime();
+
+    Thread dl;
+
+    int16_t* samples;
+
 
 
 
@@ -692,12 +727,15 @@ int main() {
 
         // Scene 1: Loading
         if (scene == 1) {
+            C2D_SceneBegin(top);
             C2D_SpriteSetPos(&logo, 115, 35);
             C2D_DrawSprite(&logo);
             loadingcounter++;
             if (loadingcounter > 300) {
                 scene = 2;
             }
+            C2D_SceneBegin(bottom);
+            DrawText("It is recommended to have a SysNAND Backup as reShop is still in beta.\n\nWe are not responsible for any bricks and/or damage.", 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
         }
 
         // Download news once
@@ -933,6 +971,11 @@ int main() {
             if (hidKeysDown() & KEY_B) {
                 scene = 2;
             }
+            if (hidKeysDown() & KEY_A) {
+                downloadbegun = false;
+                scene = 5;
+//                samples = loadOpusToPCM("romfs:/button.opus", &sampleCount);
+            }
 
 
 
@@ -942,6 +985,82 @@ int main() {
 
 
 
+        }
+
+
+//        if (samples) {
+//            playSFX(samples, sampleCount);
+//        }
+
+
+
+
+
+
+
+
+
+        if (scene == 4) {
+            C2D_SceneBegin(top);
+            DrawText("Main Screen", 200.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+
+            if (news) {
+                C2D_SceneBegin(top);
+                DrawText(news, 0.0f, 225.5f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+            }
+
+        }
+
+        if (scene == 5) {
+            char* total_size;
+            if (!downloadbegun) {
+                char url[256];
+                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%dsize.txt", cursection, tappedbox);
+                download(url, "/3ds/reShop/temp/appsize.txt");
+                u32 size;
+                total_size = readFileToBuffer("/3ds/reShop/temp/appsize.txt", &size);
+                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%d.cia", cursection, tappedbox);
+                dl = startDownload(url, "/3ds/reShop/temp/install.cia");
+               // download(url, "/3ds/reShop/temp/install.cia");
+                downloadbegun = true;
+            }
+
+            download_progress = (bw * 100) / size;  // Percent
+
+            if (bw >= atoi(total_size) && !installationStarted && !installationDone) {
+                installationStarted = true;
+                bw = 0;
+            }
+
+            if (installationStarted && !installationDone) {
+                C2D_SceneBegin(bottom);
+                DrawText("Installing...", 0.0f, 220.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                if (installoccuring == false) {
+                    installCIA("3ds/reShop/temp/install.cia");
+                }
+                scene = 6;
+                installationDone = true;
+            }
+
+
+
+            char progmessage[256];
+            sprintf(progmessage, "Progress: %1u", bw);
+
+            C2D_SceneBegin(bottom);
+
+            C2D_SceneBegin(top);
+            DrawText(progmessage, 0.0f, 225.5f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+        }
+
+        if (scene == 6) {
+            C2D_SceneBegin(top);
+            DrawText("Installation Complete!", 130.0f, 100.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+            DrawText("Press B to leave.", 145.0f, 130.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+
+            if (hidKeysDown() & KEY_B) {
+                scene = 2;
+            }
         }
 
 
@@ -972,6 +1091,7 @@ int main() {
     if (file) op_free(file);
 //    if (sfx1) linearFree(sfx1);
     if (audioBuffer) linearFree(audioBuffer);
+    amExit();
     C2D_Fini();
     ndspExit();
     httpcExit();
