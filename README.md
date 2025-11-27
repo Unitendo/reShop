@@ -39,7 +39,7 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 ## How to compile
-Run 
+Run the following lines of code:
 ```bash
 git clone https://github.com/Unitendo/reShop/
 cd reShop
