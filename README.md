@@ -2,6 +2,8 @@
 A Nintendo 3DS eShop remake built with libctru.
 
 [Check our website!](https://unitendo.jumpingcrab.com/reShop)
+
+
 [Join our Discord!](https://unitendo.jumpingcrab.com/reShop/discord)
 
 > [!NOTE]
