@@ -22,11 +22,11 @@ A Nintendo 3DS eShop remake built with libctru.
 - [x] Basic rendering
 - [x] Streamed Audio (Using @VirtuallyExisting's custom implementation)
 - [x] httpc downloading based off of devkitpro's example
-- [x] CIA Installation from SD Card (kinda)
+- [x] CIA Installation from SD Card
 - [x] Grabbing listings, descriptions, and icons off of a server
-- [x] Downloading and Installing apps (we messed up)
+- [x] Downloading and Installing apps
 - [ ] Downloading Animation
-- [ ] Private Beta
+- [ ] Closed Beta
 - [ ] Complete GUI
 - [ ] eShop-ify the entire interface (make it look as similar as possible)
 - [ ] Open Beta
