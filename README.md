@@ -45,7 +45,12 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 ## How to compile
-Run the following lines of code:
+You'll need devKitPro, 3ds-dev, and 3ds-opusfile. To install the latter two run
+```bash
+sudo dkp-pacman -S 3ds-dev 3ds-opusfile
+```
+Depending on your platform, you may not need sudo or dkp-.
+Then, run the following commands:
 ```bash
 git clone https://github.com/Unitendo/reShop/
 cd reShop
