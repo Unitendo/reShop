@@ -307,7 +307,7 @@ Result installCIA(const char* path) {
         return res;
     }
 
-    u8 buffer[0x1000];
+    u8 buffer[0x1000] __attribute__((aligned(0x1000)));
     size_t bytesRead;
     u64 totalBytes = 0;
 
@@ -711,7 +711,7 @@ int main() {
 
 
 
-        sprintf(fpsText, "MissingNo. FPS: %.0f", fps);
+        sprintf(fpsText, "FPS: %.0f", fps);
         C2D_SceneBegin(top);
         DrawText(fpsText, 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
 
@@ -996,7 +996,7 @@ int main() {
 //        }
 
 
-
+        Result burger;
 
 
 
@@ -1039,7 +1039,7 @@ int main() {
                 C2D_SceneBegin(bottom);
                 DrawText("Installing...", 0.0f, 220.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
                 if (installoccuring == false) {
-                    installCIA("3ds/reShop/temp/install.cia");
+                    burger = installCIA("/3ds/reShop/temp/install.cia");
                 }
                 scene = 6;
                 installationDone = true;
@@ -1058,8 +1058,11 @@ int main() {
 
         if (scene == 6) {
             C2D_SceneBegin(top);
+            char debugger[256];
             DrawText("Installation Complete!", 130.0f, 100.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
             DrawText("Press B to leave.", 145.0f, 130.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+            sprintf(debugger, "Code: %08lX", burger);
+            DrawText(debugger, 0.0f, 225.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
 
             if (hidKeysDown() & KEY_B) {
                 scene = 2;
@@ -1094,7 +1097,12 @@ int main() {
     if (file) op_free(file);
 //    if (sfx1) linearFree(sfx1);
     if (audioBuffer) linearFree(audioBuffer);
-    amExit();
+    if (apps) { C2D_SpriteSheetFree(apps);}
+    if (news) {free(news);}
+    if (description) {free(description);}
+//    amExit();
+    fsExit();
+    romfsExit();
     C2D_Fini();
     ndspExit();
     httpcExit();
