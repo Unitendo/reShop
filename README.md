@@ -23,8 +23,8 @@ NOTE: If you are not able to access the website it is due to us being DDoSed, tr
 - [x] CIA Installation from SD Card
 - [x] Grabbing listings, descriptions, and icons off of a server
 - [x] Downloading and Installing apps
-- [ ] Downloading Animation
-- [ ] Closed Beta
+- [x] Downloading Animation
+- [x] Closed Beta
 - [ ] Complete GUI
 - [ ] eShop-ify the entire interface (make it look as similar as possible)
 - [ ] Open Beta
