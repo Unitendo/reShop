@@ -7,7 +7,7 @@ NOTE: If you are not able to access the website it is due to us being DDoSed, tr
 
 
 [Join our Discord!](https://unitendo.jumpingcrab.com/reShop/discord)
-
+https://dcbadge.limes.pink/api/server/dCSgz7KERv
 > [!NOTE]
 > This project is not finished, but it is in active development.
 
