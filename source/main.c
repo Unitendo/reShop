@@ -74,12 +74,11 @@ bool CHECK_RESULT(const char* name, Result res) {
     return failed;
 }
 
-httpcContext context;
-
 u32 size;
 u32 siz;
 
 bool download(const char* url_str, const char* path) {
+    httpcContext context;
     u32 status = 0;
     cstring url = cstr_new(url_str);
     downloadDone = false;
@@ -463,7 +462,6 @@ void createDirectoryRecursive(const char* path) {
 
 
 
-char* description = NULL;
 
 
 
@@ -491,11 +489,16 @@ void downloadThreadFunc(void* arg);
 
 
 // Thread function
-void downloadThreadFunc(void* arg) {  // <-- Changed return type to void
-    char* url = ((char**)arg)[0];
-    char* path = ((char**)arg)[1];
+void downloadThreadFunc(void* arg) {
+    char** args = (char**)arg;
+    char* url = args[0];
+    char* path = args[1];
+
     download(url, path);
-    free(arg);
+
+    free(url);
+    free(path);
+    free(args);
 }
 
 // Start non-blocking download
@@ -649,11 +652,12 @@ int main() {
 
     bool datagrabbed = false;
 
-    char* description = "hamblyrga";
+    char* description = NULL;
+    bool descriptionOwned = false;
 
     float descscroll = 0.0f;
 
-    char* news;
+    char* news = NULL;
 
     u32 size;
 
@@ -666,7 +670,7 @@ int main() {
 
     u64 lastTime = osGetTime();
 
-    Thread dl;
+    Thread dl = NULL;
 
     int16_t* samples;
 
@@ -949,8 +953,10 @@ int main() {
                 download(url, "/3ds/reShop/temp/appdesc.txt");
                 u32 size;
                 description = readFileToBuffer("/3ds/reShop/temp/appdesc.txt", &size);
+                descriptionOwned = true;
                 if (!description) {
                     description = "Description failed to load, if you are seeing this make an issue on Github or tell us on Discord.";
+                    descriptionOwned = false;
                 }
                 datagrabbed = true;
             }
@@ -1094,19 +1100,42 @@ int main() {
         if (hidKeysDown() & KEY_START) break;
     }
 
-    if (file) op_free(file);
+    quit = true;
+    threadJoin(thread, U64_MAX);
+    threadFree(thread);
+
+    if (file) {
+        op_free(file);
+        file = NULL;
+    }
+
 //    if (sfx1) linearFree(sfx1);
     if (audioBuffer) linearFree(audioBuffer);
     if (apps) { C2D_SpriteSheetFree(apps);}
     if (news) {free(news);}
-    if (description) {free(description);}
+    if (descriptionOwned && description) {
+        free(description);
+    }
+    description = NULL;
+    if (dl) {
+        threadJoin(dl, U64_MAX);
+        threadFree(dl);
+    }
 //    amExit();
+    aptExit();
+
+    ndspSetCallback(NULL, NULL);
+    ndspExit();
+
+    httpcExit();
+    amExit();
+
+    C2D_TextBufDelete(sbuffer);
+    C2D_Fini();
+    C3D_Fini();
+
     fsExit();
     romfsExit();
-    C2D_Fini();
-    ndspExit();
-    httpcExit();
-    C3D_Fini();
     gfxExit();
     return 0;
 }
