@@ -1,7 +1,7 @@
 # reShop
 A Nintendo 3DS eShop remake built with libctru.
 
-NOTE: If you are not able to access the website it is due to us being DDoSed, try refreshing every once in a while and within 2-5 minutes you should be able to get in.
+
 
 [Check our website!](https://unitendo.jumpingcrab.com/reShop)
 
