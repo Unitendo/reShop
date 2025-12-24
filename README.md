@@ -12,6 +12,8 @@ A Nintendo 3DS eShop remake built with libctru.
 [![](https://dcbadge.limes.pink/api/server/dCSgz7KERv)](https://unitendo.jumpingcrab.com/reShop/discord)
 
 <img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
+
+
 > [!NOTE]
 > This project is not finished, but it is in active development.
 
