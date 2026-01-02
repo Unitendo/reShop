@@ -3,8 +3,12 @@ name: Build Homebrew Project
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'source/**'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'source/**'
   workflow_dispatch:
 jobs:
   build:
