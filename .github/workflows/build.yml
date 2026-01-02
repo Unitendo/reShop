@@ -1,4 +1,4 @@
-name: Build Homebrew Project
+name: Build reShop
 
 on:
   push:
