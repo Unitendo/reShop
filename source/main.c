@@ -15,6 +15,8 @@
 
 #include <3ds/services/fs.h>
 
+#include "cJSON.h"
+
 u32 __stacksize__ = 0x100000;
 
 
@@ -23,7 +25,13 @@ u32 bw;
 
 
 
+typedef struct {
+    char *name;
+    char *url;
+} AppEntry;
 
+AppEntry *appList = NULL;
+int appCount = 0;
 
 
 char* token = NULL;
@@ -564,6 +572,9 @@ int main() {
     httpcInit(0);
     amInit();
     aptInit();
+    char* jsonfile = readFileToBuffer("/3ds/reShop/temp/test.json", &size);
+    cJSON *json = cJSON_Parse(jsonfile);
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(json, "name");
 
     APT_SetAppCpuTimeLimit(1);
 
@@ -674,6 +685,13 @@ int main() {
 
     int16_t* samples;
 
+    C2D_Sprite eshopbottom;
+    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 28));
+    C2D_Sprite eshopmenu;
+    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 29));
+    
+
+
 
 
 
@@ -718,6 +736,7 @@ int main() {
         sprintf(fpsText, "FPS: %.0f", fps);
         C2D_SceneBegin(top);
         DrawText(fpsText, 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
+        DrawText(name->valuestring, 0.0f, 40.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
 
 
 
@@ -742,7 +761,7 @@ int main() {
                 scene = 2;
             }
             C2D_SceneBegin(bottom);
-            DrawText("It is recommended to have a SysNAND Backup as reShop is still in beta.\n\nWe are not responsible for any bricks and/or damage.", 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+            DrawText("reShop is still in early alpha.\n\n Please consider this while using the app and report bugs if possible.", 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
         }
 
         // Download news once
@@ -758,30 +777,28 @@ int main() {
             createDirectoryRecursive("/3ds/reShop/temp");
             download("http://104.236.25.60/reShop/cdn/section/1/applisting.txt", "/3ds/reShop/temp/applisting.txt");
             download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x");
-            apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
-            if (!apps) {
-                apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
-            }
-            char* tempContent = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
-            if (tempContent) {
-                char* token = strtok(tempContent, ",");
-                if (token) token = strtok(NULL, ",");
-                if (token) param1 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param2 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param3 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param4 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param5 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param6 = strdup(token);
-                token = strtok(NULL, ",");
-                if (token) param7 = strdup(token);
-                free(tempContent); // Avoid leak
-            }
 
+            apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
+            if (!apps) apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
+
+            char *jsonBuffer = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
+            if (jsonBuffer) {
+                cJSON *root = cJSON_Parse(jsonBuffer);
+                cJSON *appsArray = cJSON_GetObjectItemCaseSensitive(root, "apps");
+                appCount = cJSON_GetArraySize(appsArray);
+                appList = calloc(appCount, sizeof(AppEntry));
+
+                for (int i = 0; i < appCount; i++) {
+                    cJSON *app = cJSON_GetArrayItem(appsArray, i);
+                    const char *name = cJSON_GetObjectItemCaseSensitive(app, "name")->valuestring;
+                    const char *url = cJSON_GetObjectItemCaseSensitive(app, "url")->valuestring;
+                    appList[i].name = strdup(name);
+                    appList[i].url = strdup(url);
+                }
+
+                free(jsonBuffer);
+                cJSON_Delete(root);
+            }
 
             contentloaded = true;
         }
@@ -793,8 +810,11 @@ int main() {
             bool touchActive = hidKeysHeld() & KEY_TOUCH;
 
             // 7 boxes spaced 100px apart
-            const int boxCount = 7;
-            float boxPositions[7] = {0.0f, 100.0f, 200.0f, 300.0f, 400.0f, 500.0f, 600.0f};
+            const int boxCount = appCount;
+            float boxPositions[appCount];
+            for (int i = 0; i < appCount; i++) {
+                boxPositions[i] = i * 100.0f;
+            }
 
             if (touchActive) {
                 hidTouchRead(&touch);
@@ -858,20 +878,8 @@ int main() {
                         C2D_SpriteFromSheet(&sprite, apps, i);
                         C2D_DrawImageAt(sprite.image, rectX, 100, 0, NULL, 1.0f, 1.0f);
                     }
-                    if (i == snappedIndex) { // Only show label when snapped
-                        const char* label = NULL;
-                        switch(i) {
-                            case 0: label = param1; break;
-                            case 1: label = param2; break;
-                            case 2: label = param3; break;
-                            case 3: label = param4; break;
-                            case 4: label = param5; break;
-                            case 5: label = param6; break;
-                            case 6: label = param7; break;
-                        }
-                        if (label) {
-                            DrawText(label, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
-                        }
+                    if (i == snappedIndex && i < appCount) {
+                        DrawText(appList[i].name, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
                     }
                 }
             }
