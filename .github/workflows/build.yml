@@ -1,0 +1,34 @@
+name: Build reShop
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'source/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'source/**'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Additional Dependencies
+        run: |
+          dkp-pacman -Syu --noconfirm 3ds-dev 3ds-opusfile
+
+      - name: Build Project
+        run: |
+          make
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reShop build
+          path: ./reShop.3dsx
