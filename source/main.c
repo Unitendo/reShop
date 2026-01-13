@@ -28,6 +28,9 @@ u32 bw;
 typedef struct {
     char *name;
     char *url;
+    char *desc;
+    int size;
+    char *type;
 } AppEntry;
 
 AppEntry *appList = NULL;
@@ -90,100 +93,81 @@ bool download(const char* url_str, const char* path) {
     u32 status = 0;
     cstring url = cstr_new(url_str);
     downloadDone = false;
+    bool success = false;
 
     while (true) {
-        if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto fail;
+        if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto cleanup;
         if (CHECK_RESULT("httpcSetSSLOpt",   httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) goto close;
         if (CHECK_RESULT("httpcSetKeepAlive", httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", ""))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "Connection", "Keep-Alive"))) goto close;
 
-        if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) {
-        close:
-            httpcCloseContext(&context);
-            goto fail;
-        }
+        if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) goto close;
 
-        if (CHECK_RESULT("httpcGetResponsestatus", httpcGetResponseStatusCode(&context, &status))) {
-            httpcCloseContext(&context);
-            goto fail;
-        }
+        if (CHECK_RESULT("httpcGetResponseStatusCode", httpcGetResponseStatusCode(&context, &status))) goto close;
 
         if ((status >= 301 && status <= 303) || (status >= 307 && status <= 308)) {
             char newurl[0x1000];
-            if (CHECK_RESULT("httpcGetResponseHeader", httpcGetResponseHeader(&context, "Location", newurl, sizeof(newurl)))) {
-                httpcCloseContext(&context);
-                goto fail;
-            }
+            if (CHECK_RESULT("httpcGetResponseHeader", httpcGetResponseHeader(&context, "Location", newurl, sizeof(newurl)))) goto close;
             cstr_free(&url);
             url = cstr_new(newurl);
-//            printf("Redirecting to url: %s\n", url.data);
             httpcCloseContext(&context);
             continue;
         }
         break;
     }
 
-    if (status != 200) {
-//        printf("Returned Code: %lu\n", status);
-        goto fail;
-    }
+    if (status != 200) goto close;
 
-    siz = 0;
-    if (CHECK_RESULT("httpcGetDownloadSizeState", httpcGetDownloadSizeState(&context, NULL, &siz))) {
-        httpcCloseContext(&context);
-        goto fail;
-    }
-
-//    printf("Downloading %lu bytes.\n", size);
+    if (CHECK_RESULT("httpcGetDownloadSizeState", httpcGetDownloadSizeState(&context, NULL, &siz))) goto close;
 
     FS_Archive sdmcRoot;
-    if (CHECK_RESULT("FSUSER_OpenArchive", FSUSER_OpenArchive(&sdmcRoot, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        httpcCloseContext(&context);
-        goto fail;
-    }
+    if (CHECK_RESULT("FSUSER_OpenArchive", FSUSER_OpenArchive(&sdmcRoot, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) goto close;
 
-    Handle h;
+    Handle fileHandle;
     FS_Path filePath = fsMakePath(PATH_ASCII, path);
-    if (CHECK_RESULT("FSUSER_OpenFile", FSUSER_OpenFile(&h, sdmcRoot, filePath, FS_OPEN_CREATE | FS_OPEN_READ | FS_OPEN_WRITE, FS_ATTRIBUTE_ARCHIVE))) {
+    if (CHECK_RESULT("FSUSER_OpenFile", FSUSER_OpenFile(&fileHandle, sdmcRoot, filePath, FS_OPEN_CREATE | FS_OPEN_READ | FS_OPEN_WRITE, FS_ATTRIBUTE_ARCHIVE))) {
         FSUSER_CloseArchive(sdmcRoot);
-        httpcCloseContext(&context);
-        goto fail;
+        goto close;
     }
 
-    if (CHECK_RESULT("FSFILE_SetSize", FSFILE_SetSize(h, 0))) {
-        FSFILE_Close(h);
+    if (CHECK_RESULT("FSFILE_SetSize", FSFILE_SetSize(fileHandle, 0))) {
+        FSFILE_Close(fileHandle);
         FSUSER_CloseArchive(sdmcRoot);
-        httpcCloseContext(&context);
-        goto fail;
+        goto close;
     }
 
     u8* data = malloc(0x4000);
-    bw = 0;
-    u32 readSize;
-    Result ret = HTTPC_RESULTCODE_DOWNLOADPENDING;
-
-    while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING) {
-        ret = httpcDownloadData(&context, data, 0x4000, &readSize);
-        if (CHECK_RESULT("FSFILE_Write", FSFILE_Write(h, NULL, bw, data, readSize, FS_WRITE_FLUSH))) {
-            break;
-        }
-        bw += readSize;
-//        printf("%lu/%lu\n", bw, size);
+    if (!data) {
+        FSFILE_Close(fileHandle);
+        FSUSER_CloseArchive(sdmcRoot);
+        goto close;
     }
 
-    FSFILE_Close(h);
+    bw = 0;
+    u32 readSize;
+    Result ret;
+
+    do {
+        ret = httpcDownloadData(&context, data, 0x4000, &readSize);
+        if (readSize > 0) {
+            FSFILE_Write(fileHandle, NULL, bw, data, readSize, FS_WRITE_FLUSH);
+            bw += readSize;
+        }
+    } while (ret == HTTPC_RESULTCODE_DOWNLOADPENDING);
+
+    success = (ret == 0);
+
+    FSFILE_Close(fileHandle);
     FSUSER_CloseArchive(sdmcRoot);
+
+close:
     httpcCloseContext(&context);
+cleanup:
     free(data);
     cstr_free(&url);
-    return ret == 0 || ret == HTTPC_RESULTCODE_DOWNLOADPENDING; // Success if completed or already done
-
     downloadDone = true;
-
-fail:
-    cstr_free(&url);
-    return false;
+    return success;
 }
 
 
@@ -440,12 +424,13 @@ void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u
     C2D_TextBufClear(sbuffer);
     C2D_TextParse(&stext, sbuffer, text);
     C2D_TextOptimize(&stext);
+    float wordwrapsize = 290.0f;
 
     if (!wordwrap) {
         C2D_DrawText(&stext, C2D_WithColor, x, y, z, scaleX, scaleY, color);
     }
     if (wordwrap) {
-        C2D_DrawText(&stext, C2D_WithColor | C2D_WordWrap, x, y, z, scaleX, scaleY, color, 290.0f);
+        C2D_DrawText(&stext, C2D_WithColor | C2D_WordWrap, x, y, z, scaleX, scaleY, color, wordwrapsize);
     }
 }
 
@@ -572,9 +557,6 @@ int main() {
     httpcInit(0);
     amInit();
     aptInit();
-    char* jsonfile = readFileToBuffer("/3ds/reShop/temp/test.json", &size);
-    cJSON *json = cJSON_Parse(jsonfile);
-    cJSON *name = cJSON_GetObjectItemCaseSensitive(json, "name");
 
     APT_SetAppCpuTimeLimit(1);
 
@@ -685,10 +667,14 @@ int main() {
 
     int16_t* samples;
 
-    C2D_Sprite eshopbottom;
-    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 28));
-    C2D_Sprite eshopmenu;
-    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 29));
+//    C2D_Sprite eshopbottom;
+//    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 28));
+//    C2D_Sprite eshopmenu;
+//    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 29));
+
+    int justpressedflag = 0;
+
+    bool iscia = false;
     
 
 
@@ -736,13 +722,15 @@ int main() {
         sprintf(fpsText, "FPS: %.0f", fps);
         C2D_SceneBegin(top);
         DrawText(fpsText, 0.0f, 0.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
-        DrawText(name->valuestring, 0.0f, 40.0f, 0, 0.5f, 0.5f, C2D_Color32(255, 0, 0, 255), false);
 
 
 
 
 
 
+        if (!hidKeysHeld()) {
+            justpressedflag = 0;
+        }
 
 
 
@@ -775,31 +763,69 @@ int main() {
         // Load and parse content once
         if (!contentloaded) {
             createDirectoryRecursive("/3ds/reShop/temp");
-            download("http://104.236.25.60/reShop/cdn/section/1/applisting.txt", "/3ds/reShop/temp/applisting.txt");
-            download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x");
-
-            apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
-            if (!apps) apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
-
-            char *jsonBuffer = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
-            if (jsonBuffer) {
-                cJSON *root = cJSON_Parse(jsonBuffer);
-                cJSON *appsArray = cJSON_GetObjectItemCaseSensitive(root, "apps");
-                appCount = cJSON_GetArraySize(appsArray);
-                appList = calloc(appCount, sizeof(AppEntry));
-
-                for (int i = 0; i < appCount; i++) {
-                    cJSON *app = cJSON_GetArrayItem(appsArray, i);
-                    const char *name = cJSON_GetObjectItemCaseSensitive(app, "name")->valuestring;
-                    const char *url = cJSON_GetObjectItemCaseSensitive(app, "url")->valuestring;
-                    appList[i].name = strdup(name);
-                    appList[i].url = strdup(url);
-                }
-
-                free(jsonBuffer);
-                cJSON_Delete(root);
+            
+            // Ensure downloads succeed
+            if (!download("http://104.236.25.60/reShop/cdn/section/1/applisting.json", "/3ds/reShop/temp/applisting.txt") ||
+                !download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x")) {
+                contentloaded = false;
             }
 
+            apps = C2D_SpriteSheetLoad("/3ds/reShop/temp/apps.t3x");
+            if (!apps) {
+                apps = C2D_SpriteSheetLoad("romfs:/sprites.t3x");
+                if (!apps) {
+                    contentloaded = false;
+                }
+            }
+
+            char *jsonBuffer = readFileToBuffer("/3ds/reShop/temp/applisting.txt", &size);
+            if (!jsonBuffer) {
+                contentloaded = false;
+            }
+
+            cJSON *root = cJSON_Parse(jsonBuffer);
+            if (!root) {
+                free(jsonBuffer);
+                contentloaded = false;
+            }
+
+            cJSON *appsArray = cJSON_GetObjectItemCaseSensitive(root, "apps");
+            if (!appsArray || !cJSON_IsArray(appsArray)) {
+                cJSON_Delete(root);
+                free(jsonBuffer);
+                contentloaded = false;
+            }
+
+            appCount = cJSON_GetArraySize(appsArray);
+            appList = calloc(appCount, sizeof(AppEntry));
+            if (!appList) {
+                cJSON_Delete(root);
+                free(jsonBuffer);
+                contentloaded = false;
+            }
+
+            for (int i = 0; i < appCount; i++) {
+                cJSON *app = cJSON_GetArrayItem(appsArray, i);
+                if (!app) continue;
+
+                cJSON *name_item = cJSON_GetObjectItemCaseSensitive(app, "name");
+                cJSON *url_item = cJSON_GetObjectItemCaseSensitive(app, "url");
+                cJSON *desc_item = cJSON_GetObjectItemCaseSensitive(app, "desc");
+                cJSON *size_item = cJSON_GetObjectItemCaseSensitive(app, "size");
+                cJSON *type_item = cJSON_GetObjectItemCaseSensitive(app, "type");
+                
+
+                if (!name_item || !url_item || !desc_item || !size_item) continue;
+
+                appList[i].name = strdup(name_item->valuestring);
+                appList[i].url = strdup(url_item->valuestring);
+                appList[i].desc = strdup(desc_item->valuestring);
+                appList[i].size = atoi(size_item->valuestring);
+                appList[i].type = strdup(type_item->valuestring);
+            }
+
+            free(jsonBuffer);
+            cJSON_Delete(root);
             contentloaded = true;
         }
 
@@ -868,6 +894,44 @@ int main() {
                 }
             }
 
+            if (hidKeysHeld() & KEY_RIGHT) {
+                if (justpressedflag == 0) {
+                    scrollX -= 60;
+                    justpressedflag = 1;
+                }
+            }
+            if (hidKeysHeld() & KEY_LEFT) {
+                if (justpressedflag == 0) {
+                    scrollX += 60;
+                    justpressedflag = 1;
+                }
+            }
+            if (hidKeysHeld() & KEY_A) {
+                if (justpressedflag == 0) {
+                    justpressedflag = 1;
+                    for (int i = 0; i < boxCount; i++) {
+                        float rectX = boxPositions[i] + scrollX;
+                        float rectY = 100;
+                        float w = 64, h = 64;
+                        float left = rectX, right = rectX + w;
+                        float top = rectY, bottom = rectY + h;
+
+                        if (140 >= left && 140 <= right && 140 >= top && 140 <= bottom) {
+                            tappedbox = i;
+                            scene = 3;
+                            datagrabbed = false;
+                        }
+                    }
+                }
+            }
+
+            if (hidKeysHeld() & KEY_B) {
+                if (justpressedflag == 0) {
+                    justpressedflag = 1;
+                    scene = 4;
+                }
+            }
+
             // Draw label only for the snapped box
             for (int i = 0; i < boxCount; i++) {
                 float rectX = boxPositions[i] + scrollX;
@@ -879,7 +943,11 @@ int main() {
                         C2D_DrawImageAt(sprite.image, rectX, 100, 0, NULL, 1.0f, 1.0f);
                     }
                     if (i == snappedIndex && i < appCount) {
-                        DrawText(appList[i].name, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                        if (appList[i].name) {
+                            DrawText(appList[i].name, rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                        } else {
+                            DrawText("Error while loading", rectX - 20, 50.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
+                        }
                     }
                 }
             }
@@ -903,12 +971,7 @@ int main() {
                     if (!ignoreTap && touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
                         wasTouched = true;
                         tappedbox = i;
-                        if (tappedbox != 0) {
-                            scene = 3;
-                        }
-                        if (tappedbox == 0) {
-                            scene = 4;
-                        }
+                        scene = 3;
                         datagrabbed = false;
                     }
                 }
@@ -954,13 +1017,9 @@ int main() {
         if (scene == 3) {
             if (!datagrabbed) {
                 descscroll = 0.0f;
-                FILE* f = fopen("/3ds/reShop/temp/appdesc.txt", "w");
-                fclose(f);
                 char url[256];
-                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%ddesc.txt", cursection, tappedbox);
-                download(url, "/3ds/reShop/temp/appdesc.txt");
                 u32 size;
-                description = readFileToBuffer("/3ds/reShop/temp/appdesc.txt", &size);
+                description = appList[tappedbox].desc;
                 descriptionOwned = true;
                 if (!description) {
                     description = "Description failed to load, if you are seeing this make an issue on Github or tell us on Discord.";
@@ -986,12 +1045,17 @@ int main() {
                 descscroll += 3;
             }
             if (hidKeysDown() & KEY_B) {
-                scene = 2;
+                if (justpressedflag == 0) {
+                    scene = 2;
+                    justpressedflag = 1;
+                }
             }
             if (hidKeysDown() & KEY_A) {
-                downloadbegun = false;
-                scene = 5;
+                if (justpressedflag == 0) {
+                    downloadbegun = false;
+                    scene = 5;
 //                samples = loadOpusToPCM("romfs:/button.opus", &sampleCount);
+                }
             }
 
 
@@ -1029,22 +1093,25 @@ int main() {
         }
 
         if (scene == 5) {
-            char* total_size;
+            int total_size;
             if (!downloadbegun) {
                 char url[256];
-                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%dsize.txt", cursection, tappedbox);
-                download(url, "/3ds/reShop/temp/appsize.txt");
                 u32 size;
-                total_size = readFileToBuffer("/3ds/reShop/temp/appsize.txt", &size);
-                sprintf(url, "http://104.236.25.60/reShop/cdn/section/%d/app%d.cia", cursection, tappedbox);
-                dl = startDownload(url, "/3ds/reShop/temp/install.cia");
+                total_size = appList[tappedbox].size;
+                if (strcmp(appList[tappedbox].type, "cia") == 0) {
+                    iscia = true;
+                    dl = startDownload(appList[tappedbox].url, "/3ds/reShop/temp/install.cia");
+                } else {
+                    dl = startDownload(appList[tappedbox].url, "/3ds/app.3dsx");
+                    iscia = false;
+                }
                // download(url, "/3ds/reShop/temp/install.cia");
                 downloadbegun = true;
             }
 
             download_progress = (bw * 100) / size;  // Percent
 
-            if (bw >= atoi(total_size) && !installationStarted && !installationDone) {
+            if (bw >= total_size && !installationStarted && !installationDone) {
                 installationStarted = true;
                 bw = 0;
             }
@@ -1053,7 +1120,9 @@ int main() {
                 C2D_SceneBegin(bottom);
                 DrawText("Installing...", 0.0f, 220.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
                 if (installoccuring == false) {
-                    burger = installCIA("/3ds/reShop/temp/install.cia");
+                    if (iscia == true) {
+                        burger = installCIA("/3ds/reShop/temp/install.cia");
+                    }
                 }
                 scene = 6;
                 installationDone = true;
@@ -1079,7 +1148,10 @@ int main() {
             DrawText(debugger, 0.0f, 225.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), false);
 
             if (hidKeysDown() & KEY_B) {
-                scene = 2;
+                if (justpressedflag == 0) {
+                    justpressedflag = 1;
+                    scene = 2;
+                }
             }
         }
 

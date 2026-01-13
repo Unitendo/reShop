@@ -190,7 +190,7 @@ clean:
 cia:
 	@echo "If this fails, run make with no parameters first."
 	@./bannertool.exe makebanner -i banner.png -a banner.wav -o banner.bnr
-	@./bannertool.exe makesmdh -s $(APP_TITLE) -l $(APP_TITLE) -p $(APP_AUTHOR) -i icon.png -o icon.icn
+	@./bannertool.exe makesmdh -s $(APP_TITLE) -l $(APP_DESCRIPTION) -p $(APP_AUTHOR) -i icon.png -o icon.icn
 	@./makerom.exe -f cia -o $(TARGET).cia -DAPP_ENCRYPTED=false -rsf app.rsf -target t -exefslogo -elf $(TARGET).elf -icon icon.icn -banner banner.bnr
 	@echo "Built $(TARGET).cia"
 
