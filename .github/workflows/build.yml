@@ -19,14 +19,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Additional Dependencies
-        run: |
-          dkp-pacman -Syu --noconfirm 3ds-dev 3ds-opusfile
-
       - name: Build 3dsx
         run: |
           make
-      - name: Build Project
+      - name: Build cia
         run: |
           make cia
       - name: Upload Build Artifact
