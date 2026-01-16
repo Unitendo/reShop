@@ -22,16 +22,8 @@ jobs:
       - name: Build 3dsx
         run: |
           make
-      - name: Build cia
-        run: |
-          make cia
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: reShop 3dsx
           path: ./reShop.3dsx
-      - name: Upload Build Artifact 2️⃣
-        uses: actions/upload-artifact@v4
-        with:
-          name: reShop cia
-          path: ./reShop.cia
