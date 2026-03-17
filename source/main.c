@@ -17,8 +17,6 @@
 
 #include "cJSON.h"
 
-u32 __stacksize__ = 0x100000;
-
 
 u32 bw;
 
@@ -85,7 +83,6 @@ bool CHECK_RESULT(const char* name, Result res) {
     return failed;
 }
 
-u32 size;
 u32 siz;
 
 bool download(const char* url_str, const char* path) {
@@ -545,7 +542,6 @@ Thread startDownload(const char* url, const char* path) {
 
 
 int main() {
-    u32 __stacksize__ = 0x100000;
 	fsInit();
 	romfsInit();
     gfxInitDefault();
@@ -571,10 +567,7 @@ int main() {
     static bool installationStarted = false;
     static bool installationDone = false;
 
-    u32 download_progress = 0;  // 0-100%
-    bool download_active = false;
-
-    u32 sampleCount;
+//  u32 sampleCount;
 
     ndspInit();
     ndspSetOutputMode(NDSP_OUTPUT_STEREO);
@@ -595,10 +588,6 @@ int main() {
 
     LightEvent_Init(&audioEvent, RESET_ONESHOT);
     Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x3F, 1, false);
-
-    // chatgpt
-    if (!fillBuffer(file, &waveBufs[0]));
-    if (!fillBuffer(file, &waveBufs[1]));
 
 //    sfx1 = loadOpusToPCM("romfs:/button.opus", &sfx1_samples);
 
@@ -636,9 +625,6 @@ int main() {
 
     C2D_SpriteSheet apps;
 
-    const float boxPositions[7] = {0.0f, 100.0f, 200.0f, 300.0f, 400.0f, 500.0f, 600.0f};
-
-
     const float center = 130.0f;
 
     int tappedbox;
@@ -654,8 +640,6 @@ int main() {
 
     u32 size;
 
-    int cursection = 1;
-
     int frameCount = 0;
     float fps = 0.0f;
 
@@ -665,7 +649,7 @@ int main() {
 
     Thread dl = NULL;
 
-    int16_t* samples;
+//  int16_t* samples;
 
 //    C2D_Sprite eshopbottom;
 //    C2D_SpriteFromImage(&logo, C2D_SpriteSheetGetImage(spriteSheet, 28));
@@ -1017,8 +1001,6 @@ int main() {
         if (scene == 3) {
             if (!datagrabbed) {
                 descscroll = 0.0f;
-                char url[256];
-                u32 size;
                 description = appList[tappedbox].desc;
                 descriptionOwned = true;
                 if (!description) {
@@ -1095,8 +1077,6 @@ int main() {
         if (scene == 5) {
             int total_size;
             if (!downloadbegun) {
-                char url[256];
-                u32 size;
                 total_size = appList[tappedbox].size;
                 if (strcmp(appList[tappedbox].type, "cia") == 0) {
                     iscia = true;
@@ -1108,8 +1088,6 @@ int main() {
                // download(url, "/3ds/reShop/temp/install.cia");
                 downloadbegun = true;
             }
-
-            download_progress = (bw * 100) / size;  // Percent
 
             if (bw >= total_size && !installationStarted && !installationDone) {
                 installationStarted = true;
@@ -1131,7 +1109,7 @@ int main() {
 
 
             char progmessage[256];
-            sprintf(progmessage, "Progress: %1u", bw);
+            sprintf(progmessage, "Progress: %1lu", bw);
 
             C2D_SceneBegin(bottom);
 
@@ -1162,12 +1140,6 @@ int main() {
 
 
 
-        if (waveBufs[0].status == NDSP_WBUF_DONE) {
-            if (!fillBuffer(file, &waveBufs[0]));
-        }
-        if (waveBufs[1].status == NDSP_WBUF_DONE) {
-            if (!fillBuffer(file, &waveBufs[1]));
-        }
 
 
 
