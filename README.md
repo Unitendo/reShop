@@ -49,9 +49,9 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 ## How to compile
-You'll need devKitPro, 3ds-dev, and 3ds-opusfile. To install the latter two run
+You'll need devkitPro and a few dependencies. To install the latter, run:
 ```bash
-sudo dkp-pacman -S 3ds-dev 3ds-opusfile
+sudo dkp-pacman -S 3ds-dev 3ds-opusfile 3ds-curl 3ds-mbedtls 3ds-zlib 3ds-bzip2 3ds-liblzma
 ```
 Depending on your platform, you may not need sudo or dkp-.
 Then, run the following commands:
