@@ -613,7 +613,7 @@ int main() {
 //    memset(&server, 0, sizeof(server));
 //    server.sin_family = AF_INET;
 //    server.sin_port = htons(6161); // new niche meme
-//    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // 104.236.25.60
+//    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // unitendo.jumpingcrab.com
 
 //    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
 //        // placeholder
@@ -739,7 +739,7 @@ int main() {
         // Download news once
         if (!newsdownloaded) {
             createDirectoryRecursive("/3ds/reShop/news");
-            download("http://104.236.25.60/reShop/news/today.txt", "/3ds/reShop/news/today.txt");
+            download("http://unitendo.jumpingcrab.com/reShop/news/today.txt", "/3ds/reShop/news/today.txt");
             news = readFileToBuffer("/3ds/reShop/news/today.txt", &size);
             newsdownloaded = true;
         }
@@ -749,8 +749,8 @@ int main() {
             createDirectoryRecursive("/3ds/reShop/temp");
             
             // Ensure downloads succeed
-            if (!download("http://104.236.25.60/reShop/cdn/section/1/applisting.json", "/3ds/reShop/temp/applisting.txt") ||
-                !download("http://104.236.25.60/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x")) {
+            if (!download("http://unitendo.jumpingcrab.com/reShop/cdn/section/1/applisting.json", "/3ds/reShop/temp/applisting.txt") ||
+                !download("http://unitendo.jumpingcrab.com/reShop/cdn/section/1/apps.t3x", "/3ds/reShop/temp/apps.t3x")) {
                 contentloaded = false;
             }
 
