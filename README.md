@@ -31,9 +31,9 @@ A Nintendo 3DS eShop remake built with libctru.
 - [x] Downloading and Installing apps
 - [x] Downloading Animation
 - [x] Closed Beta
-- [ ] Complete GUI
-- [ ] eShop-ify the entire interface (make it look as similar as possible)
-- [ ] Open Beta
+- [x] Complete GUI
+- [x] eShop-ify the entire interface (make it look as similar as possible)
+- [x] Open Beta
 
 ## v2 Checklist
 - [ ] Messaging (like Juxt communities but realtime) under each app listing
