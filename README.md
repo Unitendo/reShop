@@ -3,22 +3,19 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 
-[Check our website!](https://unitendo.jumpingcrab.com/reShop)
+[Check our website!](https://unitendo.org/reShop)
 
 
-[Join our Discord!](https://unitendo.jumpingcrab.com/reShop/discord)
+[Join our Discord!](https://discord.unitendo.org/)
 
 
-[![](https://dcbadge.limes.pink/api/server/dCSgz7KERv)](https://unitendo.jumpingcrab.com/reShop/discord)
+[![](https://dcbadge.limes.pink/api/server/dCSgz7KERv)](https://discord.unitendo.org/)
 
 <img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
 
 
 > [!NOTE]
-> This project is not finished, but it is in active development.
-
-> [!CAUTION]
-> This software is still in development. Ensure you back up your SysNAND before even trying to use this.
+> This project is not finished, and is not currently in active development.
 
 ## v1 Checklist
 - [x] License
@@ -60,9 +57,5 @@ git clone https://github.com/Unitendo/reShop/
 cd reShop
 make
 ```
-However, you will not be able to connect to our servers, seeing as that the proper identification is private and inaccessible to the public.
 
 Therefore, the best way to get builds is to wait for us to compile a build and publish it ourselves. Thank you for your patience.
-
-
-
