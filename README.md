@@ -57,5 +57,3 @@ git clone https://github.com/Unitendo/reShop/
 cd reShop
 make
 ```
-
-Therefore, the best way to get builds is to wait for us to compile a build and publish it ourselves. Thank you for your patience.
