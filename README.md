@@ -6,10 +6,10 @@ A Nintendo 3DS eShop remake built with libctru.
 [Check our website!](https://unitendo.org/reShop)
 
 
-[Join our Discord!](https://discord.unitendo.org/)
+[Join our Discord!](http://googtendo.org/discord)
 
 
-[![](https://dcbadge.limes.pink/api/server/dCSgz7KERv)](https://discord.unitendo.org/)
+[![](https://dcbadge.limes.pink/api/server/DNu7wJjcs7)](http://googtendo.org/discord)
 
 <img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
 
