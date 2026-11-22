@@ -13,12 +13,6 @@ A Nintendo 3DS eShop remake built with libctru.
 
 <img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
 
-
-> [!NOTE]
-> This project has been cancelled.
-> Use at everyone's risk.
-> Thank you.
-
 ## v1 Checklist
 - [x] License
 - [x] Basic framework 
