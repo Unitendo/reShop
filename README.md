@@ -3,21 +3,15 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 
-[Check our website!](https://unitendo.org/reShop)
+[Check our website!](http://googtendo.org/)
 
 
-[Join our Discord!](https://discord.unitendo.org/)
+[Join our Discord!](http://googtendo.org/discord)
 
 
-[![](https://dcbadge.limes.pink/api/server/dCSgz7KERv)](https://discord.unitendo.org/)
+[![](https://dcbadge.limes.pink/api/server/DNu7wJjcs7)](http://googtendo.org/discord)
 
 <img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
-
-
-> [!NOTE]
-> This project has been cancelled.
-> Use at everyone's risk.
-> Thank you.
 
 ## v1 Checklist
 - [x] License
