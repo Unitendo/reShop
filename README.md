@@ -3,7 +3,7 @@ A Nintendo 3DS eShop remake built with libctru.
 
 
 
-[Check our website!](https://unitendo.org/reShop)
+[Check our website!](http://googtendo.org/)
 
 
 [Join our Discord!](http://googtendo.org/discord)
